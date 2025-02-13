@@ -1,10 +1,10 @@
-
 $ErrorActionPreference = "Stop"
 
 $ContribPath = "./data/contribution"
 $SrcFiles = Get-ChildItem -Path "./data/" -Include "*.pak", "*.sig"
 $PathFile = "./path.txt"
 $VngFiles = @("VNGLogo-WindowsClient.sig", "VNGLogo-WindowsClient.pak")
+$CopyFilesList = @("MatureData-WindowsClient.sig", "MatureData-WindowsClient.pak")
 
 function ContributionPrint {
     param([string]$Path)
@@ -17,9 +17,7 @@ function ContributionPrint {
     Get-Content $Path
     Write-Host "Do you wish to continue? (Y/N - Y is default, auto-continue in 5 seconds)"
 
-    $signal = $null
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    
     while ($stopwatch.Elapsed.TotalSeconds -lt 5) {
         if ([console]::KeyAvailable) {
             $key = [console]::ReadKey($true).Key
@@ -32,10 +30,8 @@ function ContributionPrint {
         }
         Start-Sleep -Milliseconds 200
     }
-
     Write-Host "Continuing with default option (Y)."
 }
-
 
 function ValidatePaths {
     param([string[]]$Paths)
@@ -54,7 +50,7 @@ function GetDestinationPath {
         exit 1
     }
 
-$DestinationPath = (Get-Content $PathFile | Out-String).Trim()
+    $DestinationPath = (Get-Content $PathFile | Select-Object -First 1).Trim()
     if (-Not (Test-Path $DestinationPath -PathType Container)) {
         Write-Host "Destination path not found: $DestinationPath. Please check the path.txt file."
         exit 1
@@ -63,12 +59,22 @@ $DestinationPath = (Get-Content $PathFile | Out-String).Trim()
 }
 
 function CopyFiles {
-    param([string[]]$SrcFiles, [string]$DestinationPath)
+    param([string]$DestinationPath, [string[]]$Files)
     
-    foreach ($File in $SrcFiles) {
-        Copy-Item -Force -Path $File -Destination $DestinationPath
+    foreach ($File in $Files) {
+        $FilePath = Join-Path "./data/" $File
+        if (Test-Path $FilePath) {
+            try {
+                Copy-Item -Force -Path $FilePath -Destination $DestinationPath -ErrorAction Stop
+                Write-Host "Copied: $File"
+            } catch {
+                Write-Host "Failed to copy: $File. Error: $_"
+            }
+        } else {
+            Write-Host "File not found, skipping: $File"
+        }
     }
-    Write-Host "Files copied successfully."
+    Write-Host "File copy process completed."
 }
 
 function RemoveFiles {
@@ -78,9 +84,9 @@ function RemoveFiles {
         $FilePath = Join-Path $DestinationPath $File
         if (Test-Path $FilePath) {
             Remove-Item -Force $FilePath
-            Write-Host "Removed $File successfully."
+            Write-Host "Removed: $File"
         } else {
-            Write-Host "File $File not found, skipping removal."
+            Write-Host "File not found, skipping: $File"
         }
     }
 }
@@ -89,10 +95,10 @@ function Main {
     ContributionPrint -Path $ContribPath
     ValidatePaths -Paths $SrcFiles
     $DestinationPath = GetDestinationPath
-
-    CopyFiles -SrcFiles $SrcFiles -DestinationPath $DestinationPath
+    
+    CopyFiles -DestinationPath $DestinationPath -Files $CopyFilesList
     RemoveFiles -DestinationPath $DestinationPath -Files $VngFiles
-
+    
     Write-Host "Script executed successfully. Exiting..."
     exit 0
 }
